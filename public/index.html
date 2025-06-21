@@ -5,7 +5,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Server Browser</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <style>
+        :root {
+            --chakra-colors-gray-50: #F7FAFC;
+            --chakra-colors-gray-100: #EDF2F7;
+            --chakra-colors-gray-200: #E2E8F0;
+            --chakra-colors-gray-300: #CBD5E0;
+            --chakra-colors-gray-400: #A0AEC0;
+            --chakra-colors-gray-500: #718096;
+            --chakra-colors-gray-600: #4A5568;
+            --chakra-colors-gray-700: #2D3748;
+            --chakra-colors-gray-800: #1A202C;
+            --chakra-colors-blue-500: #3182CE;
+            --chakra-font-family-sans: 'Inter', sans-serif;
+            --chakra-font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,107 +29,97 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            font-family: var(--chakra-font-family-sans);
+            background-color: var(--chakra-colors-gray-50);
+            color: var(--chakra-colors-gray-800);
+            line-height: 1.5;
         }
 
         .container {
             max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
+            margin: 40px auto;
+            padding: 0 20px;
         }
 
         .header {
-            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
+            margin-bottom: 40px;
         }
 
         .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            font-weight: 300;
+            font-size: 2.25rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: var(--chakra-colors-gray-800);
         }
 
         .server-info {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 20px;
-            border-radius: 12px;
-            margin-top: 20px;
-            backdrop-filter: blur(10px);
+            background: white;
+            border: 1px solid var(--chakra-colors-gray-200);
+            border-radius: 8px;
+            padding: 24px;
         }
 
         .server-info h3 {
-            margin-bottom: 15px;
-            font-size: 1.2em;
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--chakra-colors-gray-200);
+            padding-bottom: 12px;
         }
 
         .info-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
+            gap: 20px;
         }
 
         .info-item {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.875rem;
         }
 
         .info-item label {
             font-weight: 600;
-            color: #ecf0f1;
+            color: var(--chakra-colors-gray-600);
             display: block;
-            margin-bottom: 5px;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            margin-bottom: 4px;
         }
 
         .info-item .value {
-            font-family: 'Courier New', monospace;
-            font-size: 1.1em;
+            font-family: var(--chakra-font-family-mono);
+            font-size: 0.875rem;
+            color: var(--chakra-colors-gray-700);
             word-break: break-all;
-        }
-
-        .network-ips {
-            grid-column: 1 / -1;
         }
 
         .ip-list {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
-            margin-top: 10px;
+            margin-top: 8px;
         }
 
         .ip-item {
-            background: rgba(46, 204, 113, 0.2);
-            border: 1px solid rgba(46, 204, 113, 0.4);
-            padding: 8px 12px;
-            border-radius: 20px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
+            background-color: var(--chakra-colors-gray-100);
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-family: var(--chakra-font-family-mono);
+            font-size: 0.875rem;
+            color: var(--chakra-colors-gray-700);
         }
 
         .content {
-            padding: 30px;
+            background: white;
+            border: 1px solid var(--chakra-colors-gray-200);
+            border-radius: 8px;
+            overflow: hidden;
         }
 
         .breadcrumb {
-            background: #f8f9fa;
-            padding: 15px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-family: 'Courier New', monospace;
-            border-left: 4px solid #3498db;
+            padding: 16px 24px;
+            font-family: var(--chakra-font-family-mono);
+            font-size: 0.875rem;
+            color: var(--chakra-colors-gray-600);
+            border-bottom: 1px solid var(--chakra-colors-gray-200);
         }
 
         .file-list {
@@ -123,25 +129,29 @@
         .file-item {
             display: flex;
             align-items: center;
-            padding: 15px 20px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            transition: all 0.3s ease;
-            border: 1px solid #e9ecef;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--chakra-colors-gray-100);
+            transition: background-color 0.2s ease;
             cursor: pointer;
         }
 
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
         .file-item:hover {
-            background: #f8f9fa;
-            border-color: #3498db;
-            transform: translateX(5px);
+            background-color: var(--chakra-colors-gray-50);
         }
 
         .file-icon {
-            font-size: 1.5em;
-            margin-right: 15px;
-            width: 30px;
-            text-align: center;
+            margin-right: 16px;
+            width: 24px;
+            height: 24px;
+            color: var(--chakra-colors-gray-500);
+        }
+
+        .folder {
+            color: var(--chakra-colors-blue-500);
         }
 
         .file-info {
@@ -149,49 +159,40 @@
         }
 
         .file-name {
-            font-weight: 600;
-            color: #2c3e50;
-            font-size: 1.1em;
+            font-weight: 500;
+            color: var(--chakra-colors-gray-800);
         }
 
         .file-meta {
-            color: #7f8c8d;
-            font-size: 0.9em;
-            margin-top: 3px;
+            color: var(--chakra-colors-gray-500);
+            font-size: 0.875rem;
+            margin-top: 2px;
         }
 
         .file-size {
-            color: #95a5a6;
-            font-size: 0.9em;
-            margin-left: auto;
-            font-family: 'Courier New', monospace;
+            color: var(--chakra-colors-gray-600);
+            font-size: 0.875rem;
+            font-family: var(--chakra-font-family-mono);
         }
 
-        .folder {
-            color: #f39c12 !important;
-        }
-
-        .file {
-            color: #3498db !important;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #7f8c8d;
-        }
-
+        .loading,
         .error {
-            background: #e74c3c;
-            color: white;
-            padding: 20px;
+            padding: 40px;
+            text-align: center;
+            color: var(--chakra-colors-gray-500);
+        }
+
+        .error-message {
+            background: #FED7D7;
+            color: #C53030;
+            border: 1px solid #FBB6B6;
             border-radius: 8px;
-            margin: 20px 0;
+            padding: 16px;
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
+            border: 3px solid var(--chakra-colors-gray-200);
+            border-top: 3px solid var(--chakra-colors-blue-500);
             border-radius: 50%;
             width: 30px;
             height: 30px;
@@ -211,24 +212,11 @@
 
         @media (max-width: 768px) {
             .container {
-                margin: 10px;
-                border-radius: 12px;
-            }
-
-            .header {
-                padding: 20px;
+                margin: 20px auto;
             }
 
             .header h1 {
-                font-size: 2em;
-            }
-
-            .info-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .content {
-                padding: 20px;
+                font-size: 1.75rem;
             }
         }
     </style>
@@ -237,15 +225,17 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📁 File Server Browser</h1>
+            <h1>File Server Browser</h1>
             <div class="server-info" id="serverInfo">
-                <div class="spinner"></div>
-                <p>Loading server information...</p>
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading server information...</p>
+                </div>
             </div>
         </div>
 
         <div class="content">
-            <div class="breadcrumb" id="breadcrumb">📍 /</div>
+            <div class="breadcrumb" id="breadcrumb">/</div>
             <div id="fileList">
                 <div class="loading">
                     <div class="spinner"></div>
@@ -260,6 +250,8 @@
             constructor() {
                 this.currentPath = '';
                 this.serverInfo = null;
+                this.folderIcon = `<svg class="file-icon folder" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
+                this.fileIcon = `<svg class="file-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>`;
                 this.init();
             }
 
@@ -269,12 +261,17 @@
             }
 
             async loadServerInfo() {
+                const serverInfoEl = document.getElementById('serverInfo');
                 try {
                     const response = await fetch('/api/server-info');
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
                     this.serverInfo = await response.json();
                     this.renderServerInfo();
                 } catch (error) {
                     console.error('Failed to load server info:', error);
+                    serverInfoEl.innerHTML = `<div class="error-message"><strong>Error:</strong> Could not load server information. Is the server running?</div>`;
                 }
             }
 
@@ -282,17 +279,12 @@
                 const serverInfoEl = document.getElementById('serverInfo');
                 const info = this.serverInfo;
 
-                let networkIPsHtml = '';
-                if (info.networkIPs && info.networkIPs.length > 0) {
-                    networkIPsHtml = info.networkIPs.map(ip =>
-                        `<div class="ip-item">http://${ip.address}:${info.port} (${ip.interface})</div>`
-                    ).join('');
-                } else {
-                    networkIPsHtml = '<div class="ip-item">No network interfaces available</div>';
-                }
+                let networkIPsHtml = info.networkIPs.map(ip =>
+                    `<div class="ip-item">${ip.address}:${info.port}</div>`
+                ).join('') || `<div class="ip-item">No network IPs found</div>`;
 
                 serverInfoEl.innerHTML = `
-                    <h3>🖥️ Server Information</h3>
+                    <h3>Server Information</h3>
                     <div class="info-grid">
                         <div class="info-item">
                             <label>Hostname</label>
@@ -303,31 +295,25 @@
                             <div class="value">${info.port}</div>
                         </div>
                         <div class="info-item">
-                            <label>Local URLs</label>
-                            <div class="value">
-                                http://localhost:${info.port}<br>
-                                http://127.0.0.1:${info.port}
-                            </div>
-                        </div>
-                        <div class="info-item">
                             <label>Serving Directory</label>
                             <div class="value">${info.serveDir}</div>
                         </div>
-                        <div class="info-item network-ips">
-                            <label>Network URLs (Share these with others on your network)</label>
-                            <div class="ip-list">
-                                ${networkIPsHtml}
-                            </div>
+                        <div class="info-item" style="grid-column: 1 / -1;">
+                            <label>Network URLs</label>
+                            <div class="ip-list">${networkIPsHtml}</div>
                         </div>
                     </div>
                 `;
             }
 
             async loadDirectory(path) {
+                const fileListEl = document.getElementById('fileList');
+                fileListEl.innerHTML = `<div class="loading"><div class="spinner"></div><p>Loading files...</p></div>`;
                 try {
                     const response = await fetch(`/api/browse/${path}`);
                     if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        const err = await response.json();
+                        throw new Error(err.error || `HTTP ${response.status}: ${response.statusText}`);
                     }
                     const data = await response.json();
                     this.renderDirectory(data);
@@ -341,65 +327,58 @@
                 const fileListEl = document.getElementById('fileList');
                 let html = '<ul class="file-list">';
 
-                // Add parent directory link if not at root
-                if (data.parent !== null) {
+                if (data.parent !== null && data.parent !== undefined) {
                     html += `
                         <li class="file-item" onclick="fileServer.navigateToDirectory('${data.parent}')">
-                            <div class="file-icon folder">📁</div>
+                            ${this.folderIcon}
                             <div class="file-info">
                                 <div class="file-name">..</div>
-                                <div class="file-meta">Parent directory</div>
                             </div>
                         </li>
                     `;
                 }
 
-                // Sort files: directories first, then files
-                const sortedFiles = data.files.sort((a, b) => {
-                    if (a.isDirectory && !b.isDirectory) return -1;
-                    if (!a.isDirectory && b.isDirectory) return 1;
-                    return a.name.localeCompare(b.name);
-                });
+                if (!data.files || data.files.length === 0) {
+                    html += `<li class="file-item" style="cursor: default;"><div class="file-info"><div class="file-meta">This directory is empty.</div></div></li>`
+                } else {
+                    const sortedFiles = data.files.sort((a, b) => {
+                        if (a.isDirectory && !b.isDirectory) return -1;
+                        if (!a.isDirectory && b.isDirectory) return 1;
+                        return a.name.localeCompare(b.name);
+                    });
 
-                sortedFiles.forEach(file => {
-                    const icon = file.isDirectory ? '📁' : '📄';
-                    const className = file.isDirectory ? 'folder' : 'file';
-                    const onClick = file.isDirectory ?
-                        `fileServer.navigateToDirectory('${this.joinPath(data.path, file.name)}')` :
-                        `fileServer.downloadFile('${this.joinPath(data.path, file.name)}')`;
+                    sortedFiles.forEach(file => {
+                        const icon = file.isDirectory ? this.folderIcon : this.fileIcon;
+                        const onClick = file.isDirectory ?
+                            `fileServer.navigateToDirectory('${this.joinPath(data.path, file.name)}')` :
+                            `fileServer.downloadFile('${this.joinPath(data.path, file.name)}')`;
 
-                    let sizeInfo = '';
-                    if (!file.isDirectory) {
-                        const sizeInKB = (file.size / 1024).toFixed(1);
-                        sizeInfo = `<div class="file-size">${sizeInKB} KB</div>`;
-                    }
+                        const sizeInfo = !file.isDirectory ? `<div class="file-size">${(file.size / 1024).toFixed(1)} KB</div>` : '';
+                        const modifiedDate = new Date(file.modified).toLocaleDateString();
 
-                    const modifiedDate = new Date(file.modified).toLocaleDateString();
-
-                    html += `
-                        <li class="file-item" onclick="${onClick}">
-                            <div class="file-icon ${className}">${icon}</div>
-                            <div class="file-info">
-                                <div class="file-name">${file.name}${file.isDirectory ? '/' : ''}</div>
-                                <div class="file-meta">Modified: ${modifiedDate}</div>
-                            </div>
-                            ${sizeInfo}
-                        </li>
-                    `;
-                });
+                        html += `
+                            <li class="file-item" onclick="${onClick}">
+                                ${icon}
+                                <div class="file-info">
+                                    <div class="file-name">${file.name}</div>
+                                    <div class="file-meta">Modified: ${modifiedDate}</div>
+                                </div>
+                                ${sizeInfo}
+                            </li>
+                        `;
+                    });
+                }
 
                 html += '</ul>';
                 fileListEl.innerHTML = html;
             }
 
             renderError(message) {
-                const fileListEl = document.getElementById('fileList');
-                fileListEl.innerHTML = `<div class="error">${message}</div>`;
+                document.getElementById('fileList').innerHTML = `<div class="error"><div class="error-message"><strong>Error:</strong> ${message}</div></div>`;
             }
 
             updateBreadcrumb(path) {
-                const breadcrumbEl = document.getElementById('breadcrumb');
-                breadcrumbEl.textContent = `📍 /${path}`;
+                document.getElementById('breadcrumb').textContent = `/${path}`;
             }
 
             navigateToDirectory(path) {
@@ -412,12 +391,10 @@
             }
 
             joinPath(dir, file) {
-                if (!dir) return file;
-                return `${dir}/${file}`;
+                return dir ? `${dir}/${file}` : file;
             }
         }
 
-        // Initialize the file server when page loads
         let fileServer;
         document.addEventListener('DOMContentLoaded', () => {
             fileServer = new FileServer();
