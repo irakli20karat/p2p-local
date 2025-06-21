@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Server Browser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .server-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .server-info h3 {
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .info-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .info-item label {
+            font-weight: 600;
+            color: #ecf0f1;
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .info-item .value {
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em;
+            word-break: break-all;
+        }
+
+        .network-ips {
+            grid-column: 1 / -1;
+        }
+
+        .ip-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .ip-item {
+            background: rgba(46, 204, 113, 0.2);
+            border: 1px solid rgba(46, 204, 113, 0.4);
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .breadcrumb {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-family: 'Courier New', monospace;
+            border-left: 4px solid #3498db;
+        }
+
+        .file-list {
+            list-style: none;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+            border: 1px solid #e9ecef;
+            cursor: pointer;
+        }
+
+        .file-item:hover {
+            background: #f8f9fa;
+            border-color: #3498db;
+            transform: translateX(5px);
+        }
+
+        .file-icon {
+            font-size: 1.5em;
+            margin-right: 15px;
+            width: 30px;
+            text-align: center;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 1.1em;
+        }
+
+        .file-meta {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-top: 3px;
+        }
+
+        .file-size {
+            color: #95a5a6;
+            font-size: 0.9em;
+            margin-left: auto;
+            font-family: 'Courier New', monospace;
+        }
+
+        .folder {
+            color: #f39c12 !important;
+        }
+
+        .file {
+            color: #3498db !important;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 12px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📁 File Server Browser</h1>
+            <div class="server-info" id="serverInfo">
+                <div class="spinner"></div>
+                <p>Loading server information...</p>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="breadcrumb" id="breadcrumb">📍 /</div>
+            <div id="fileList">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading files...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class FileServer {
+            constructor() {
+                this.currentPath = '';
+                this.serverInfo = null;
+                this.init();
+            }
+
+            async init() {
+                await this.loadServerInfo();
+                await this.loadDirectory(this.currentPath);
+            }
+
+            async loadServerInfo() {
+                try {
+                    const response = await fetch('/api/server-info');
+                    this.serverInfo = await response.json();
+                    this.renderServerInfo();
+                } catch (error) {
+                    console.error('Failed to load server info:', error);
+                }
+            }
+
+            renderServerInfo() {
+                const serverInfoEl = document.getElementById('serverInfo');
+                const info = this.serverInfo;
+
+                let networkIPsHtml = '';
+                if (info.networkIPs && info.networkIPs.length > 0) {
+                    networkIPsHtml = info.networkIPs.map(ip =>
+                        `<div class="ip-item">http://${ip.address}:${info.port} (${ip.interface})</div>`
+                    ).join('');
+                } else {
+                    networkIPsHtml = '<div class="ip-item">No network interfaces available</div>';
+                }
+
+                serverInfoEl.innerHTML = `
+                    <h3>🖥️ Server Information</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Hostname</label>
+                            <div class="value">${info.hostname}</div>
+                        </div>
+                        <div class="info-item">
+                            <label>Port</label>
+                            <div class="value">${info.port}</div>
+                        </div>
+                        <div class="info-item">
+                            <label>Local URLs</label>
+                            <div class="value">
+                                http://localhost:${info.port}<br>
+                                http://127.0.0.1:${info.port}
+                            </div>
+                        </div>
+                        <div class="info-item">
+                            <label>Serving Directory</label>
+                            <div class="value">${info.serveDir}</div>
+                        </div>
+                        <div class="info-item network-ips">
+                            <label>Network URLs (Share these with others on your network)</label>
+                            <div class="ip-list">
+                                ${networkIPsHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async loadDirectory(path) {
+                try {
+                    const response = await fetch(`/api/browse/${path}`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+                    this.renderDirectory(data);
+                    this.updateBreadcrumb(data.path);
+                } catch (error) {
+                    this.renderError(`Failed to load directory: ${error.message}`);
+                }
+            }
+
+            renderDirectory(data) {
+                const fileListEl = document.getElementById('fileList');
+                let html = '<ul class="file-list">';
+
+                // Add parent directory link if not at root
+                if (data.parent !== null) {
+                    html += `
+                        <li class="file-item" onclick="fileServer.navigateToDirectory('${data.parent}')">
+                            <div class="file-icon folder">📁</div>
+                            <div class="file-info">
+                                <div class="file-name">..</div>
+                                <div class="file-meta">Parent directory</div>
+                            </div>
+                        </li>
+                    `;
+                }
+
+                // Sort files: directories first, then files
+                const sortedFiles = data.files.sort((a, b) => {
+                    if (a.isDirectory && !b.isDirectory) return -1;
+                    if (!a.isDirectory && b.isDirectory) return 1;
+                    return a.name.localeCompare(b.name);
+                });
+
+                sortedFiles.forEach(file => {
+                    const icon = file.isDirectory ? '📁' : '📄';
+                    const className = file.isDirectory ? 'folder' : 'file';
+                    const onClick = file.isDirectory ?
+                        `fileServer.navigateToDirectory('${this.joinPath(data.path, file.name)}')` :
+                        `fileServer.downloadFile('${this.joinPath(data.path, file.name)}')`;
+
+                    let sizeInfo = '';
+                    if (!file.isDirectory) {
+                        const sizeInKB = (file.size / 1024).toFixed(1);
+                        sizeInfo = `<div class="file-size">${sizeInKB} KB</div>`;
+                    }
+
+                    const modifiedDate = new Date(file.modified).toLocaleDateString();
+
+                    html += `
+                        <li class="file-item" onclick="${onClick}">
+                            <div class="file-icon ${className}">${icon}</div>
+                            <div class="file-info">
+                                <div class="file-name">${file.name}${file.isDirectory ? '/' : ''}</div>
+                                <div class="file-meta">Modified: ${modifiedDate}</div>
+                            </div>
+                            ${sizeInfo}
+                        </li>
+                    `;
+                });
+
+                html += '</ul>';
+                fileListEl.innerHTML = html;
+            }
+
+            renderError(message) {
+                const fileListEl = document.getElementById('fileList');
+                fileListEl.innerHTML = `<div class="error">${message}</div>`;
+            }
+
+            updateBreadcrumb(path) {
+                const breadcrumbEl = document.getElementById('breadcrumb');
+                breadcrumbEl.textContent = `📍 /${path}`;
+            }
+
+            navigateToDirectory(path) {
+                this.currentPath = path;
+                this.loadDirectory(path);
+            }
+
+            downloadFile(path) {
+                window.open(`/download/${path}`, '_blank');
+            }
+
+            joinPath(dir, file) {
+                if (!dir) return file;
+                return `${dir}/${file}`;
+            }
+        }
+
+        // Initialize the file server when page loads
+        let fileServer;
+        document.addEventListener('DOMContentLoaded', () => {
+            fileServer = new FileServer();
+        });
+    </script>
+</body>
+
+</html>

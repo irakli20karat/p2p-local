@@ -2,19 +2,22 @@
   "name": "file-server",
   "version": "1.0.0",
   "description": "A simple file server that serves directory listings",
-  "main": "index.js",
-  "bin": "index.js",
+  "main": "server.js",
+  "bin": "server.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node server.js",
+    "dev": "node server.js --port 3000",
+    "serve": "node server.js --dir ./files",
     "build": "npm run build:linux && npm run build:windows && npm run build:macos",
-    "build:linux": "pkg index.js --output serve/FileServer-linux --targets node18-linux-x64",
-    "build:windows": "pkg index.js --output serve/FileServer-windows.exe --targets node18-win-x64", 
-    "build:macos": "pkg index.js --output serve/FileServer-macos --targets node18-macos-x64"
+    "build:linux": "pkg server.js --output dist/FileServer-linux --targets node18-linux-x64",
+    "build:windows": "pkg server.js --output dist/FileServer-windows.exe --targets node18-win-x64",
+    "build:macos": "pkg server.js --output dist/FileServer-macos --targets node18-macos-x64"
   },
   "keywords": [
     "file-server",
     "static-server",
-    "directory-listing"
+    "directory-listing",
+    "file-browser"
   ],
   "author": "",
   "license": "MIT",
@@ -24,16 +27,21 @@
   "devDependencies": {
     "pkg": "^5.8.1"
   },
+  "engines": {
+    "node": ">=14.0.0"
+  },
   "pkg": {
-    "assets": [],
+    "assets": [
+      "public/**/*"
+    ],
     "scripts": [
-      "index.js"
+      "server.js"
     ],
     "targets": [
       "node18-linux-x64",
-      "node18-win-x64", 
+      "node18-win-x64",
       "node18-macos-x64"
     ],
-    "outputPath": "serve/"
+    "outputPath": "dist/"
   }
 }
