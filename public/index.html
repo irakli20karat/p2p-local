@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Server Browser</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        :root {
+            --chakra-colors-gray-50: #F7FAFC;
+            --chakra-colors-gray-100: #EDF2F7;
+            --chakra-colors-gray-200: #E2E8F0;
+            --chakra-colors-gray-300: #CBD5E0;
+            --chakra-colors-gray-400: #A0AEC0;
+            --chakra-colors-gray-500: #718096;
+            --chakra-colors-gray-600: #4A5568;
+            --chakra-colors-gray-700: #2D3748;
+            --chakra-colors-gray-800: #1A202C;
+            --chakra-colors-blue-500: #3182CE;
+            --chakra-font-family-sans: 'Inter', sans-serif;
+            --chakra-font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--chakra-font-family-sans);
+            background-color: var(--chakra-colors-gray-50);
+            color: var(--chakra-colors-gray-800);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .header {
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.25rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: var(--chakra-colors-gray-800);
+        }
+
+        .server-info {
+            background: white;
+            border: 1px solid var(--chakra-colors-gray-200);
+            border-radius: 8px;
+            padding: 24px;
+        }
+
+        .server-info h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--chakra-colors-gray-200);
+            padding-bottom: 12px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .info-item {
+            font-size: 0.875rem;
+        }
+
+        .info-item label {
+            font-weight: 600;
+            color: var(--chakra-colors-gray-600);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .info-item .value {
+            font-family: var(--chakra-font-family-mono);
+            font-size: 0.875rem;
+            color: var(--chakra-colors-gray-700);
+            word-break: break-all;
+        }
+
+        .ip-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .ip-item {
+            background-color: var(--chakra-colors-gray-100);
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-family: var(--chakra-font-family-mono);
+            font-size: 0.875rem;
+            color: var(--chakra-colors-gray-700);
+        }
+
+        .content {
+            background: white;
+            border: 1px solid var(--chakra-colors-gray-200);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .breadcrumb {
+            padding: 16px 24px;
+            font-family: var(--chakra-font-family-mono);
+            font-size: 0.875rem;
+            color: var(--chakra-colors-gray-600);
+            border-bottom: 1px solid var(--chakra-colors-gray-200);
+        }
+
+        .file-list {
+            list-style: none;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--chakra-colors-gray-100);
+            transition: background-color 0.2s ease;
+            cursor: pointer;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-item:hover {
+            background-color: var(--chakra-colors-gray-50);
+        }
+
+        .file-icon {
+            margin-right: 16px;
+            width: 24px;
+            height: 24px;
+            color: var(--chakra-colors-gray-500);
+        }
+
+        .folder {
+            color: var(--chakra-colors-blue-500);
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: var(--chakra-colors-gray-800);
+        }
+
+        .file-meta {
+            color: var(--chakra-colors-gray-500);
+            font-size: 0.875rem;
+            margin-top: 2px;
+        }
+
+        .file-size {
+            color: var(--chakra-colors-gray-600);
+            font-size: 0.875rem;
+            font-family: var(--chakra-font-family-mono);
+        }
+
+        .loading,
+        .error {
+            padding: 40px;
+            text-align: center;
+            color: var(--chakra-colors-gray-500);
+        }
+
+        .error-message {
+            background: #FED7D7;
+            color: #C53030;
+            border: 1px solid #FBB6B6;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .spinner {
+            border: 3px solid var(--chakra-colors-gray-200);
+            border-top: 3px solid var(--chakra-colors-blue-500);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 20px auto;
+            }
+
+            .header h1 {
+                font-size: 1.75rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>File Server Browser</h1>
+            <div class="server-info" id="serverInfo">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading server information...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="breadcrumb" id="breadcrumb">/</div>
+            <div id="fileList">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading files...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class FileServer {
+            constructor() {
+                this.currentPath = '';
+                this.serverInfo = null;
+                this.folderIcon = `<svg class="file-icon folder" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
+                this.fileIcon = `<svg class="file-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>`;
+                this.init();
+            }
+
+            async init() {
+                await this.loadServerInfo();
+                await this.loadDirectory(this.currentPath);
+            }
+
+            async loadServerInfo() {
+                const serverInfoEl = document.getElementById('serverInfo');
+                try {
+                    const response = await fetch('/api/server-info');
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    this.serverInfo = await response.json();
+                    this.renderServerInfo();
+                } catch (error) {
+                    console.error('Failed to load server info:', error);
+                    serverInfoEl.innerHTML = `<div class="error-message"><strong>Error:</strong> Could not load server information. Is the server running?</div>`;
+                }
+            }
+
+            renderServerInfo() {
+                const serverInfoEl = document.getElementById('serverInfo');
+                const info = this.serverInfo;
+
+                let networkIPsHtml = info.networkIPs.map(ip =>
+                    `<div class="ip-item">${ip.address}:${info.port}</div>`
+                ).join('') || `<div class="ip-item">No network IPs found</div>`;
+
+                serverInfoEl.innerHTML = `
+                    <h3>Server Information</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Hostname</label>
+                            <div class="value">${info.hostname}</div>
+                        </div>
+                        <div class="info-item">
+                            <label>Port</label>
+                            <div class="value">${info.port}</div>
+                        </div>
+                        <div class="info-item">
+                            <label>Serving Directory</label>
+                            <div class="value">${info.serveDir}</div>
+                        </div>
+                        <div class="info-item" style="grid-column: 1 / -1;">
+                            <label>Network URLs</label>
+                            <div class="ip-list">${networkIPsHtml}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async loadDirectory(path) {
+                const fileListEl = document.getElementById('fileList');
+                fileListEl.innerHTML = `<div class="loading"><div class="spinner"></div><p>Loading files...</p></div>`;
+                try {
+                    const response = await fetch(`/api/browse/${path}`);
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.error || `HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+                    this.renderDirectory(data);
+                    this.updateBreadcrumb(data.path);
+                } catch (error) {
+                    this.renderError(`Failed to load directory: ${error.message}`);
+                }
+            }
+
+            renderDirectory(data) {
+                const fileListEl = document.getElementById('fileList');
+                let html = '<ul class="file-list">';
+
+                if (data.parent !== null && data.parent !== undefined) {
+                    html += `
+                        <li class="file-item" onclick="fileServer.navigateToDirectory('${data.parent}')">
+                            ${this.folderIcon}
+                            <div class="file-info">
+                                <div class="file-name">..</div>
+                            </div>
+                        </li>
+                    `;
+                }
+
+                if (!data.files || data.files.length === 0) {
+                    html += `<li class="file-item" style="cursor: default;"><div class="file-info"><div class="file-meta">This directory is empty.</div></div></li>`
+                } else {
+                    const sortedFiles = data.files.sort((a, b) => {
+                        if (a.isDirectory && !b.isDirectory) return -1;
+                        if (!a.isDirectory && b.isDirectory) return 1;
+                        return a.name.localeCompare(b.name);
+                    });
+
+                    sortedFiles.forEach(file => {
+                        const icon = file.isDirectory ? this.folderIcon : this.fileIcon;
+                        const onClick = file.isDirectory ?
+                            `fileServer.navigateToDirectory('${this.joinPath(data.path, file.name)}')` :
+                            `fileServer.downloadFile('${this.joinPath(data.path, file.name)}')`;
+
+                        const sizeInfo = !file.isDirectory ? `<div class="file-size">${(file.size / 1024).toFixed(1)} KB</div>` : '';
+                        const modifiedDate = new Date(file.modified).toLocaleDateString();
+
+                        html += `
+                            <li class="file-item" onclick="${onClick}">
+                                ${icon}
+                                <div class="file-info">
+                                    <div class="file-name">${file.name}</div>
+                                    <div class="file-meta">Modified: ${modifiedDate}</div>
+                                </div>
+                                ${sizeInfo}
+                            </li>
+                        `;
+                    });
+                }
+
+                html += '</ul>';
+                fileListEl.innerHTML = html;
+            }
+
+            renderError(message) {
+                document.getElementById('fileList').innerHTML = `<div class="error"><div class="error-message"><strong>Error:</strong> ${message}</div></div>`;
+            }
+
+            updateBreadcrumb(path) {
+                document.getElementById('breadcrumb').textContent = `/${path}`;
+            }
+
+            navigateToDirectory(path) {
+                this.currentPath = path;
+                this.loadDirectory(path);
+            }
+
+            downloadFile(path) {
+                window.open(`/download/${path}`, '_blank');
+            }
+
+            joinPath(dir, file) {
+                return dir ? `${dir}/${file}` : file;
+            }
+        }
+
+        let fileServer;
+        document.addEventListener('DOMContentLoaded', () => {
+            fileServer = new FileServer();
+        });
+    </script>
+</body>
+
+</html>
