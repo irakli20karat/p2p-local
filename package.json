@@ -8,6 +8,9 @@
     "start": "node server.js",
     "dev": "node server.js --port 3000",
     "serve": "node server.js --dir ./files",
+    "tunnel": "node tunnel-setup.js",
+    "ngrok": "npx ngrok http 6488",
+    "localtunnel": "npx localtunnel --port 6488",
     "build": "npm run build:linux && npm run build:windows && npm run build:macos",
     "build:linux": "pkg server.js --output dist/FileServer-linux --targets node18-linux-x64",
     "build:windows": "pkg server.js --output dist/FileServer-windows.exe --targets node18-win-x64",
@@ -22,7 +25,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "pkg": "^5.8.1"

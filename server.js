@@ -3,7 +3,14 @@ const path = require('path');
 const fs = require('fs');
 const net = require('net');
 const os = require('os');
+const https = require('https');
+const crypto = require('crypto');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+
 const app = express();
+const server = createServer(app);
+const io = new Server(server);
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -49,6 +56,39 @@ function getNetworkIPs() {
     return ips;
 }
 
+// Function to get external IP address
+async function getExternalIP() {
+    const services = [
+        'https://api.ipify.org',
+        'https://ipv4.icanhazip.com',
+        'https://checkip.amazonaws.com'
+    ];
+
+    for (const service of services) {
+        try {
+            const response = await new Promise((resolve, reject) => {
+                const req = https.get(service, { timeout: 5000 }, (res) => {
+                    let data = '';
+                    res.on('data', chunk => data += chunk);
+                    res.on('end', () => resolve({ data: data.trim(), status: res.statusCode }));
+                });
+                req.on('error', reject);
+                req.on('timeout', () => {
+                    req.destroy();
+                    reject(new Error('Timeout'));
+                });
+            });
+
+            if (response.status === 200 && response.data) {
+                return response.data;
+            }
+        } catch (error) {
+            continue; // Try next service
+        }
+    }
+    return null;
+}
+
 // Function to check if port is available
 function isPortAvailable(port) {
     return new Promise((resolve) => {
@@ -71,11 +111,23 @@ async function findAvailablePort(startPort) {
     throw new Error(`No available port found after checking ${MAX_PORT_ATTEMPTS} ports starting from ${startPort}`);
 }
 
+// Function to generate secure username based on IP
+function generateSecureUsername(ip, displayName) {
+    // Create a hash of the IP address
+    const hash = crypto.createHash('sha256').update(ip).digest('hex');
+    // Take first 4 characters of the hash
+    const ipCode = hash.substring(0, 4).toUpperCase();
+    // Clean the display name (remove special characters, limit length)
+    const cleanName = displayName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 15) || 'User';
+    return `@${ipCode}-${cleanName}`;
+}
+
 // Global variables to store server info
 let SERVER_INFO = {
     port: null,
     serveDir: SERVE_DIR,
     networkIPs: [],
+    externalIP: null,
     hostname: os.hostname()
 };
 
@@ -177,40 +229,142 @@ async function startServer() {
         const startPort = specifiedPort || DEFAULT_PORT;
         const PORT = await findAvailablePort(startPort);
         const networkIPs = getNetworkIPs();
+        
+        // Get external IP for cross-network access
+        console.log('🔍 Detecting external IP address...');
+        const externalIP = await getExternalIP();
 
         // Update server info
         SERVER_INFO.port = PORT;
         SERVER_INFO.networkIPs = networkIPs;
+        SERVER_INFO.externalIP = externalIP;
 
-        app.listen(PORT, '0.0.0.0', () => {
+        // Socket.IO chat functionality
+        const connectedUsers = new Map();
+        
+        io.on('connection', (socket) => {
+            const clientIP = socket.handshake.address || socket.conn.remoteAddress || 'unknown';
+            console.log(`👤 User connected: ${socket.id} from ${clientIP}`);
+            
+            socket.on('join-chat', (displayName) => {
+                // Generate secure username based on IP and display name
+                const secureUsername = generateSecureUsername(clientIP, displayName || 'User');
+                
+                const user = {
+                    id: socket.id,
+                    username: secureUsername,
+                    displayName: displayName || 'User',
+                    ip: clientIP,
+                    joinedAt: new Date()
+                };
+                connectedUsers.set(socket.id, user);
+                
+                // Send the secure username back to the client
+                socket.emit('username-assigned', secureUsername);
+                
+                // Notify all users about new user
+                io.emit('user-joined', {
+                    user: { username: secureUsername, displayName: user.displayName },
+                    totalUsers: connectedUsers.size
+                });
+                
+                // Send current user list to new user
+                const userList = Array.from(connectedUsers.values()).map(u => ({
+                    username: u.username,
+                    displayName: u.displayName
+                }));
+                socket.emit('users-list', userList);
+            });
+            
+            socket.on('chat-message', (data) => {
+                const user = connectedUsers.get(socket.id);
+                if (user) {
+                    const message = {
+                        id: Date.now(),
+                        username: user.username,
+                        message: data.message,
+                        timestamp: new Date()
+                    };
+                    io.emit('chat-message', message);
+                }
+            });
+            
+            socket.on('disconnect', () => {
+                const user = connectedUsers.get(socket.id);
+                if (user) {
+                    connectedUsers.delete(socket.id);
+                    io.emit('user-left', {
+                        user: { 
+                            username: user.username, 
+                            displayName: user.displayName 
+                        },
+                        totalUsers: connectedUsers.size
+                    });
+                    console.log(`👤 User disconnected: ${user.username} (${user.displayName})`);
+                }
+            });
+        });
+
+        server.listen(PORT, '0.0.0.0', () => {
             console.log('🚀 File Server Started!');
             console.log(`📍 Serving directory: ${SERVE_DIR}`);
             console.log(`💻 Hostname: ${SERVER_INFO.hostname}`);
             console.log('');
-            console.log('🌐 Server URLs:');
-            console.log(`   Local:    http://localhost:${PORT}`);
-            console.log(`   Local:    http://127.0.0.1:${PORT}`);
+            console.log('🌐 Local Access URLs:');
+            console.log(`   http://localhost:${PORT}`);
+            console.log(`   http://127.0.0.1:${PORT}`);
 
             if (networkIPs.length > 0) {
-                networkIPs.forEach(ip => {
-                    console.log(`   Network:  http://${ip.address}:${PORT} (${ip.interface})`);
-                });
                 console.log('');
-                console.log('📱 Network access: Others on your network can access using the Network URLs above');
+                console.log('📱 Same Network Access (LAN):');
+                networkIPs.forEach(ip => {
+                    console.log(`   http://${ip.address}:${PORT} (${ip.interface})`);
+                });
+            }
+
+            if (externalIP) {
+                console.log('');
+                console.log('🌍 Cross-Network Access (Internet):');
+                console.log(`   External IP: ${externalIP}`);
+                console.log(`   Potential URL: http://${externalIP}:${PORT}`);
+                console.log('');
+                console.log('⚠️  ROUTER SETUP REQUIRED for cross-network access:');
+                console.log('   1. Open your router admin panel (usually 192.168.1.1 or 192.168.0.1)');
+                console.log(`   2. Set up Port Forwarding: External Port ${PORT} → Internal IP ${networkIPs[0]?.address || 'YOUR_LOCAL_IP'}:${PORT}`);
+                console.log('   3. Enable the port forwarding rule');
+                console.log(`   4. Share this URL: http://${externalIP}:${PORT}`);
+                console.log('');
+                console.log('🔒 SECURITY WARNING:');
+                console.log('   - This will expose your files to the entire internet');
+                console.log('   - Only enable if you trust who will access it');
+                console.log('   - Consider using a VPN or tunneling service instead');
             } else {
                 console.log('');
-                console.log('⚠️  No network interfaces found - server only accessible locally');
+                console.log('⚠️  Could not detect external IP address');
+                console.log('💡 Check your internet connection for cross-network access');
+            }
+
+            console.log('');
+            console.log('🔧 Alternative Cross-Network Solutions:');
+            console.log('   - Use ngrok: npx ngrok http ' + PORT);
+            console.log('   - Use localtunnel: npx localtunnel --port ' + PORT);
+            console.log('   - Set up a VPN connection');
+
+            if (networkIPs.length > 0) {
+                console.log('');
+                console.log('✅ Same network users can access immediately using LAN URLs above');
+                console.log('💡 Make sure your firewall allows connections on port', PORT);
             }
 
             if (specifiedPort && PORT !== specifiedPort) {
                 console.log(`⚠️  Port ${specifiedPort} was busy, using ${PORT} instead`);
             }
             console.log('');
-            console.log('Usage:');
+            console.log('📋 Usage Examples:');
             console.log('  node server.js --port 8080 --dir ./my-folder');
             console.log('  node server.js -p 3000 -d /path/to/files');
             console.log('');
-            console.log('Press Ctrl+C to stop the server');
+            console.log('🛑 Press Ctrl+C to stop the server');
         });
     } catch (error) {
         console.error('❌ Failed to start server:', error.message);
