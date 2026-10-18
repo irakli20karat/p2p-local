@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Server Browser</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="/vendor/bootstrap-icons/font/bootstrap-icons.min.css">
     <script src="/socket.io/socket.io.js"></script>
     <style>
         :root {
@@ -20,7 +22,7 @@
             --chakra-colors-gray-800: #1A202C;
             --chakra-colors-blue-500: #3182CE;
             --chakra-font-family-sans: 'Inter', sans-serif;
-            --chakra-font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+            --chakra-font-family-data: 'DM Sans', 'Inter', sans-serif;
         }
 
         * {
@@ -86,7 +88,7 @@
         }
 
         .info-item .value {
-            font-family: var(--chakra-font-family-mono);
+            font-family: var(--chakra-font-family-data);
             font-size: 0.875rem;
             color: var(--chakra-colors-gray-700);
             word-break: break-all;
@@ -103,7 +105,7 @@
             background-color: var(--chakra-colors-gray-100);
             padding: 4px 12px;
             border-radius: 9999px;
-            font-family: var(--chakra-font-family-mono);
+            font-family: var(--chakra-font-family-data);
             font-size: 0.875rem;
             color: var(--chakra-colors-gray-700);
         }
@@ -115,9 +117,72 @@
             overflow: hidden;
         }
 
+        .view-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 0 24px;
+            border-bottom: 1px solid var(--chakra-colors-gray-200);
+            background: white;
+        }
+
+        .view-tab {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 12px 12px;
+            color: var(--chakra-colors-gray-500);
+            background: transparent;
+            border: 0;
+            border-bottom: 2px solid transparent;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .view-tab.active {
+            color: var(--chakra-colors-blue-500);
+            border-bottom-color: var(--chakra-colors-blue-500);
+        }
+
+        .tracker-view { display: none; padding: 24px; }
+        .tracker-view.active { display: block; }
+        .tracker-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .tracker-card, .tracker-table-card {
+            background: white;
+            border: 1px solid var(--chakra-colors-gray-200);
+            border-radius: 8px;
+        }
+        .tracker-card { padding: 16px 20px; }
+        .tracker-card-label { color: var(--chakra-colors-gray-500); font-size: 0.85rem; }
+        .tracker-card-value { color: var(--chakra-colors-gray-800); font-size: 1.5rem; font-weight: 600; margin-top: 4px; }
+        .tracker-table-card { overflow: hidden; margin-bottom: 20px; }
+        .tracker-section-heading { padding: 16px 20px; font-size: 1rem; font-weight: 600; border-bottom: 1px solid var(--chakra-colors-gray-200); }
+        .tracker-table-wrap { overflow-x: auto; }
+        .tracker-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.82rem; }
+        .tracker-table th, .tracker-table td { padding: 12px 14px; border-bottom: 1px solid var(--chakra-colors-gray-100); white-space: nowrap; }
+        .tracker-table th { color: var(--chakra-colors-gray-600); background: var(--chakra-colors-gray-50); font-weight: 600; }
+        .tracker-table tr.download-row.striped > td { background: var(--chakra-colors-gray-100); }
+        .tracker-table tr:last-child td { border-bottom: 0; }
+        .tracker-file-name { font-weight: 600; color: var(--chakra-colors-gray-800); }
+        .tracker-file-path, .tracker-peer-details { display: block; color: var(--chakra-colors-gray-500); font-size: 0.75rem; margin-top: 3px; }
+        .tracker-empty { color: var(--chakra-colors-gray-500); text-align: center; padding: 32px !important; }
+        .peer-graph-cell { padding: 8px 14px 16px !important; background: white; }
+        .peer-graph-cell.striped { background: var(--chakra-colors-gray-100) !important; }
+        .peer-graph-panel { overflow: hidden; background: white; }
+        .peer-graph-cell.striped .peer-graph-panel,
+        .peer-graph-cell.striped .peer-speed-canvas { background: var(--chakra-colors-gray-100); }
+        .peer-graph-heading { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; color: #527057; font-size: 0.75rem; }
+        .peer-graph-speed { color: #16842b; font-weight: 600; }
+        .peer-speed-canvas { display: block; width: 100%; height: 104px; }
+
+        @media (max-width: 768px) {
+            .tracker-summary { grid-template-columns: 1fr; gap: 10px; }
+            .tracker-view { padding: 16px; }
+        }
+
         .breadcrumb {
             padding: 16px 24px;
-            font-family: var(--chakra-font-family-mono);
+            font-family: var(--chakra-font-family-data);
             font-size: 0.875rem;
             color: var(--chakra-colors-gray-600);
             border-bottom: 1px solid var(--chakra-colors-gray-200);
@@ -173,7 +238,44 @@
         .file-size {
             color: var(--chakra-colors-gray-600);
             font-size: 0.875rem;
-            font-family: var(--chakra-font-family-mono);
+            font-family: var(--chakra-font-family-data);
+        }
+
+        .peer-list {
+            display: none;
+            list-style: none;
+            padding: 0 24px 12px 64px;
+            border-bottom: 1px solid var(--chakra-colors-gray-100);
+        }
+
+        .peer-list.visible { display: block; }
+
+        .peer-row, .peer-heading {
+            display: grid;
+            grid-template-columns: minmax(120px, 1.4fr) repeat(6, minmax(75px, 1fr));
+            gap: 12px;
+            align-items: center;
+            padding: 8px 12px;
+            font-size: 0.8rem;
+        }
+
+        .peer-heading {
+            background: var(--chakra-colors-gray-500);
+            color: white;
+            font-weight: 600;
+            border-radius: 4px;
+        }
+
+        .peer-row { color: var(--chakra-colors-gray-600); border-bottom: 1px solid var(--chakra-colors-gray-100); }
+        .peer-row span { overflow-wrap: anywhere; }
+        .peer-ip { color: var(--chakra-colors-gray-800); font-weight: 600; }
+        .peer-eta { color: #2F855A; font-weight: 600; }
+        .peer-identity { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+        .peer-details { color: var(--chakra-colors-gray-500); font-size: 0.72rem; }
+
+        @media (max-width: 600px) {
+            .peer-list { padding-left: 12px; padding-right: 12px; overflow-x: auto; }
+            .peer-heading, .peer-row { min-width: 720px; }
         }
 
         .loading,
@@ -460,18 +562,40 @@
         </div>
 
         <div class="content">
-            <div class="breadcrumb" id="breadcrumb">/</div>
-            <div id="fileList">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p>Loading files...</p>
+            <div class="view-tabs" role="tablist" aria-label="File server views">
+                <button type="button" class="view-tab active" id="filesTab" role="tab" aria-selected="true" onclick="fileServer.showView('files')"><i class="bi bi-folder2-open" aria-hidden="true"></i>Files</button>
+                <button type="button" class="view-tab" id="trackerTab" role="tab" aria-selected="false" onclick="fileServer.showView('tracker')" hidden><i class="bi bi-activity" aria-hidden="true"></i>Tracker</button>
+            </div>
+            <div id="filesView">
+                <div class="breadcrumb" id="breadcrumb">/</div>
+                <div id="fileList">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading files...</p>
+                    </div>
                 </div>
             </div>
+            <section class="tracker-view" id="trackerView" role="tabpanel" aria-labelledby="trackerTab">
+                <div class="tracker-summary">
+                    <div class="tracker-card"><div class="tracker-card-label">Active downloads</div><div class="tracker-card-value" id="trackerActiveCount">0</div></div>
+                    <div class="tracker-card"><div class="tracker-card-label">Current throughput</div><div class="tracker-card-value" id="trackerTotalSpeed">0 B/s</div></div>
+                    <div class="tracker-card"><div class="tracker-card-label">Downloaded by active peers</div><div class="tracker-card-value" id="trackerDownloaded">0 MB</div></div>
+                </div>
+                <div class="tracker-table-card">
+                    <div class="tracker-section-heading">Active downloads</div>
+                    <div class="tracker-table-wrap">
+                        <table class="tracker-table">
+                            <thead><tr><th>File</th><th>Peer</th><th>Progress</th><th>Downloaded</th><th>Left</th><th>Speed</th><th>ETA</th><th>Elapsed</th></tr></thead>
+                            <tbody id="trackerDownloadRows"><tr><td class="tracker-empty" colspan="8">No active downloads</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
         </div>
     </div>
 
     <!-- Chat Toggle Button -->
-    <button class="chat-toggle" id="chatToggle" onclick="toggleChat()">💬</button>
+    <button class="chat-toggle" id="chatToggle" onclick="toggleChat()" aria-label="Open live chat" title="Open live chat"><i class="bi bi-chat-dots" aria-hidden="true"></i></button>
 
     <!-- Chat Container -->
     <div class="chat-container" id="chatContainer">
@@ -503,8 +627,28 @@
             constructor() {
                 this.currentPath = '';
                 this.serverInfo = null;
-                this.folderIcon = `<svg class="file-icon folder" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>`;
-                this.fileIcon = `<svg class="file-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>`;
+                this.downloadPeers = new Map();
+                this.trackerSnapshot = { downloads: [], totalSpeed: 0 };
+                socket = io();
+                this.socket = socket;
+                this.socket.on('connect', () => {
+                    this.socket.emit('peer-info', { deviceName: this.getDeviceName() });
+                });
+                this.socket.on('download-peers', ({ filePath, peers }) => {
+                    this.downloadPeers.set(filePath, peers);
+                    this.renderPeers(filePath);
+                });
+                this.socket.on('tracker-access', allowed => {
+                    const trackerTab = document.getElementById('trackerTab');
+                    trackerTab.hidden = !allowed;
+                });
+                this.socket.on('tracker-update', snapshot => {
+                    this.trackerSnapshot = snapshot;
+                    this.renderTracker(snapshot);
+                });
+                initializeChat();
+                this.folderIcon = '<i class="file-icon folder bi bi-folder" aria-hidden="true"></i>';
+                this.fileIcon = '<i class="file-icon bi bi-file-earmark" aria-hidden="true"></i>';
                 this.init();
             }
 
@@ -560,7 +704,7 @@
                             <label>External IP (for cross-network access)</label>
                             <div class="value" style="color: #E53E3E; font-weight: 600;">${info.externalIP}:${info.port}</div>
                             <div style="font-size: 0.75rem; color: #718096; margin-top: 4px;">
-                                ⚠️ Requires router port forwarding setup
+                                <i class="bi bi-exclamation-triangle" aria-hidden="true" style="margin-right: 4px;"></i>Requires router port forwarding setup
                             </div>
                         </div>
                         ` : ''}
@@ -628,11 +772,16 @@
                                 ${sizeInfo}
                             </li>
                         `;
+                        if (!file.isDirectory) {
+                            const filePath = this.joinPath(data.path, file.name);
+                            html += `<li class="peer-list" data-peer-path="${this.escapeAttribute(filePath)}"></li>`;
+                        }
                     });
                 }
 
                 html += '</ul>';
                 fileListEl.innerHTML = html;
+                this.downloadPeers.forEach((_, filePath) => this.renderPeers(filePath));
             }
 
             renderError(message) {
@@ -643,13 +792,234 @@
                 document.getElementById('breadcrumb').textContent = `/${path}`;
             }
 
+            showView(view) {
+                const showTracker = view === 'tracker' && !document.getElementById('trackerTab').hidden;
+                document.getElementById('filesView').style.display = showTracker ? 'none' : 'block';
+                document.getElementById('trackerView').classList.toggle('active', showTracker);
+                document.getElementById('filesTab').classList.toggle('active', !showTracker);
+                document.getElementById('trackerTab').classList.toggle('active', showTracker);
+                document.getElementById('filesTab').setAttribute('aria-selected', String(!showTracker));
+                document.getElementById('trackerTab').setAttribute('aria-selected', String(showTracker));
+                if (showTracker) this.renderTracker(this.trackerSnapshot);
+            }
+
+            renderTracker(snapshot) {
+                const downloads = snapshot.downloads || [];
+                document.getElementById('trackerActiveCount').textContent = downloads.length;
+                document.getElementById('trackerTotalSpeed').textContent = `${this.formatBytes(snapshot.totalSpeed)}/s`;
+                document.getElementById('trackerDownloaded').textContent = `${this.formatMegabytes(downloads.reduce((total, download) => total + download.downloaded, 0))} MB`;
+
+                const tbody = document.getElementById('trackerDownloadRows');
+                tbody.replaceChildren();
+                if (!downloads.length) {
+                    const row = document.createElement('tr');
+                    const cell = document.createElement('td');
+                    cell.className = 'tracker-empty';
+                    cell.colSpan = 8;
+                    cell.textContent = 'No active downloads';
+                    row.appendChild(cell);
+                    tbody.appendChild(row);
+                } else {
+                    const peerGraphs = [];
+                    downloads.forEach((download, index) => {
+                        const row = document.createElement('tr');
+                        row.className = index % 2 ? 'download-row striped' : 'download-row';
+                        const file = document.createElement('td');
+                        const fileName = document.createElement('span');
+                        fileName.className = 'tracker-file-name';
+                        fileName.textContent = download.fileName;
+                        const filePath = document.createElement('span');
+                        filePath.className = 'tracker-file-path';
+                        filePath.textContent = download.filePath;
+                        file.append(fileName, filePath);
+
+                        const peer = document.createElement('td');
+                        peer.textContent = download.ip;
+                        const peerDetails = document.createElement('span');
+                        peerDetails.className = 'tracker-peer-details';
+                        peerDetails.textContent = [download.deviceName, download.nickname].filter(Boolean).join(' · ');
+                        peer.appendChild(peerDetails);
+
+                        [file, peer, `${download.percent.toFixed(1)}%`, `${this.formatMegabytes(download.downloaded)} MB`, `${this.formatMegabytes(download.left)} MB`, `${this.formatBytes(download.speed)}/s`, this.formatDuration(download.eta), this.formatDuration(download.elapsed)].forEach(value => {
+                            const cell = typeof value === 'string' ? document.createElement('td') : value;
+                            if (typeof value === 'string') cell.textContent = value;
+                            row.appendChild(cell);
+                        });
+                        tbody.appendChild(row);
+
+                        const graphRow = document.createElement('tr');
+                        const graphCell = document.createElement('td');
+                        graphCell.className = index % 2 ? 'peer-graph-cell striped' : 'peer-graph-cell';
+                        graphCell.colSpan = 8;
+                        const graphPanel = document.createElement('div');
+                        graphPanel.className = 'peer-graph-panel';
+                        const graphHeading = document.createElement('div');
+                        graphHeading.className = 'peer-graph-heading';
+                        const graphTitle = document.createElement('span');
+                        graphTitle.textContent = 'Download Speed';
+                        const graphSpeed = document.createElement('span');
+                        graphSpeed.className = 'peer-graph-speed';
+                        graphSpeed.textContent = `${this.formatBytes(download.speed)}/s`;
+                        graphHeading.append(graphTitle, graphSpeed);
+                        const graphCanvas = document.createElement('canvas');
+                        graphCanvas.className = 'peer-speed-canvas';
+                        graphCanvas.setAttribute('role', 'img');
+                        graphCanvas.setAttribute('aria-label', `Download speed for ${download.ip} over the last 60 seconds`);
+                        graphPanel.append(graphHeading, graphCanvas);
+                        graphCell.appendChild(graphPanel);
+                        graphRow.appendChild(graphCell);
+                        tbody.appendChild(graphRow);
+                        peerGraphs.push({ canvas: graphCanvas, history: download.speedHistory || [] });
+                    });
+                    peerGraphs.forEach(graph => this.drawPeerSpeedChart(graph.canvas, graph.history));
+                }
+            }
+
+            drawPeerSpeedChart(canvas, points) {
+                const width = canvas.clientWidth;
+                const height = canvas.clientHeight;
+                if (!width || !height) return;
+                const ratio = window.devicePixelRatio || 1;
+                canvas.width = width * ratio;
+                canvas.height = height * ratio;
+                const context = canvas.getContext('2d');
+                context.setTransform(ratio, 0, 0, ratio, 0, 0);
+                context.clearRect(0, 0, width, height);
+
+                const padding = { left: 8, right: 8, top: 6, bottom: 6 };
+                const plotWidth = width - padding.left - padding.right;
+                const plotHeight = height - padding.top - padding.bottom;
+                const maxSpeed = Math.max(1024, ...points.map(point => point.speed)) * 1.12;
+                const chartBackground = canvas.closest('.peer-graph-cell')?.classList.contains('striped') ? '#EDF2F7' : '#ffffff';
+                context.fillStyle = chartBackground;
+                context.fillRect(0, 0, width, height);
+                context.strokeStyle = 'rgba(42, 160, 55, 0.14)';
+                context.lineWidth = 1;
+                for (let index = 0; index <= 4; index++) {
+                    const y = padding.top + index / 4 * plotHeight;
+                    context.beginPath();
+                    context.moveTo(padding.left, y);
+                    context.lineTo(width - padding.right, y);
+                    context.stroke();
+                }
+                for (let index = 0; index <= 20; index++) {
+                    const x = padding.left + index / 20 * plotWidth;
+                    context.beginPath();
+                    context.moveTo(x, padding.top);
+                    context.lineTo(x, height - padding.bottom);
+                    context.stroke();
+                }
+                if (!points.length) return;
+
+                const lastTime = points[points.length - 1].time;
+                const coordinates = points.map(point => ({
+                    x: padding.left + Math.max(0, plotWidth - ((lastTime - point.time) / 60000) * plotWidth),
+                    y: padding.top + plotHeight * (1 - point.speed / maxSpeed)
+                }));
+                const gradient = context.createLinearGradient(0, padding.top, 0, height - padding.bottom);
+                gradient.addColorStop(0, 'rgba(18, 177, 48, 0.78)');
+                gradient.addColorStop(1, 'rgba(18, 177, 48, 0.58)');
+                context.beginPath();
+                context.moveTo(coordinates[0].x, height - padding.bottom);
+                coordinates.forEach(point => context.lineTo(point.x, point.y));
+                context.lineTo(coordinates[coordinates.length - 1].x, height - padding.bottom);
+                context.closePath();
+                context.fillStyle = gradient;
+                context.fill();
+                context.beginPath();
+                coordinates.forEach((point, index) => index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y));
+                context.strokeStyle = '#0c9c2c';
+                context.lineWidth = 1.8;
+                context.lineJoin = 'round';
+                context.lineCap = 'round';
+                context.stroke();
+            }
+
             navigateToDirectory(path) {
                 this.currentPath = path;
                 this.loadDirectory(path);
             }
 
             downloadFile(path) {
-                window.open(`/download/${path}`, '_blank');
+                window.open(`/download/${encodeURI(path)}?peerId=${encodeURIComponent(this.socket.id || '')}`, '_blank');
+            }
+
+            renderPeers(filePath) {
+                const container = Array.from(document.querySelectorAll('.peer-list')).find(el => el.dataset.peerPath === filePath);
+                if (!container) return;
+                const peers = this.downloadPeers.get(filePath) || [];
+                container.replaceChildren();
+                container.classList.toggle('visible', peers.length > 0);
+                if (!peers.length) return;
+
+                const heading = document.createElement('div');
+                heading.className = 'peer-heading';
+                ['IP', '%', 'Downloaded', 'Left', 'Speed', 'ETA', 'Elapsed'].forEach(label => {
+                    const cell = document.createElement('span');
+                    cell.textContent = label;
+                    heading.appendChild(cell);
+                });
+                container.appendChild(heading);
+                peers.forEach(peer => {
+                    const row = document.createElement('div');
+                    row.className = 'peer-row';
+                    const identity = document.createElement('div');
+                    identity.className = 'peer-identity';
+                    const ip = document.createElement('span');
+                    ip.className = 'peer-ip';
+                    ip.textContent = peer.ip;
+                    const details = document.createElement('span');
+                    details.className = 'peer-details';
+                    details.textContent = [peer.deviceName, peer.nickname].filter(Boolean).join(' · ');
+                    identity.append(ip, details);
+                    row.appendChild(identity);
+                    [`${peer.percent.toFixed(1)}%`, `${this.formatMegabytes(peer.downloaded)} MB`, `${this.formatMegabytes(peer.left)} MB`, `${this.formatBytes(peer.speed)}/s`, this.formatDuration(peer.eta), this.formatDuration(peer.elapsed)].forEach((value, index) => {
+                        const cell = document.createElement('span');
+                        cell.textContent = value;
+                        if (index === 4) cell.className = 'peer-eta';
+                        row.appendChild(cell);
+                    });
+                    container.appendChild(row);
+                });
+            }
+
+            formatBytes(bytes) {
+                if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+                const units = ['B', 'KB', 'MB', 'GB'];
+                const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+                return `${(bytes / Math.pow(1024, index)).toFixed(1)} ${units[index]}`;
+            }
+
+            formatMegabytes(bytes) {
+                return (Math.max(0, bytes || 0) / (1024 * 1024)).toFixed(1);
+            }
+
+            formatDuration(seconds) {
+                if (!Number.isFinite(seconds)) return '—';
+                const value = Math.max(0, Math.floor(seconds));
+                const hours = Math.floor(value / 3600);
+                const minutes = Math.floor((value % 3600) / 60);
+                const secs = value % 60;
+                return hours ? `${hours}h ${minutes}m` : minutes ? `${minutes}m ${secs}s` : `${secs}s`;
+            }
+
+            escapeAttribute(value) {
+                return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }
+
+            getDeviceName() {
+                const ua = navigator.userAgent;
+                const platform = /iPhone|iPad|iPod/.test(ua) ? 'iOS'
+                    : /Android/.test(ua) ? 'Android'
+                    : /Windows/.test(ua) ? 'Windows'
+                    : /Mac OS X/.test(ua) ? 'macOS'
+                    : /CrOS/.test(ua) ? 'ChromeOS'
+                    : /Linux/.test(ua) ? 'Linux' : 'Unknown device';
+                const browser = /Edg\//.test(ua) ? 'Edge'
+                    : /Firefox\//.test(ua) ? 'Firefox'
+                    : /Chrome\//.test(ua) ? 'Chrome'
+                    : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+                return `${platform} · ${browser}`;
             }
 
             joinPath(dir, file) {
@@ -663,10 +1033,11 @@
         let currentDisplayName = '';
         let isChatOpen = false;
         let isConnected = false;
+        let chatInitialized = false;
 
         function initializeChat() {
-            socket = io();
-            
+            if (chatInitialized) return;
+            chatInitialized = true;
             socket.on('connect', () => {
                 console.log('Connected to chat server');
                 isConnected = true;
@@ -734,9 +1105,7 @@
                 currentDisplayName = displayName;
                 document.getElementById('usernameModal').style.display = 'none';
                 
-                if (!socket) {
-                    initializeChat();
-                }
+                initializeChat();
                 
                 socket.emit('join-chat', displayName);
                 addSystemMessage(`Welcome to the chat, ${displayName}!`);

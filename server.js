@@ -11,6 +11,90 @@ const { Server } = require('socket.io');
 const app = express();
 const server = createServer(app);
 const io = new Server(server);
+const activeDownloads = new Map();
+const connectedPeers = new Map();
+const hostViewerSocketIds = new Set();
+
+function normalizeClientAddress(address) {
+    return (address || '').replace(/^::ffff:/i, '').replace(/^::1$/, '127.0.0.1');
+}
+
+function isHostAddress(address) {
+    const normalizedAddress = normalizeClientAddress(address);
+    return normalizedAddress === '127.0.0.1' ||
+        SERVER_INFO.networkIPs.some(ip => normalizeClientAddress(ip.address) === normalizedAddress);
+}
+
+function publishDownloadPeers(filePath) {
+    const peers = Array.from(activeDownloads.values())
+        .filter(download => download.filePath === filePath)
+        .map(download => {
+            const elapsedSeconds = Math.max((Date.now() - download.startedAt) / 1000, 0.1);
+            const speed = download.bytesSent / elapsedSeconds;
+            const remainingBytes = Math.max(download.fileSize - download.bytesSent, 0);
+            return {
+                id: download.id,
+                ip: download.ip,
+                deviceName: download.deviceName,
+                nickname: download.nickname,
+                percent: download.fileSize ? Math.min(download.bytesSent / download.fileSize * 100, 100) : 0,
+                downloaded: Math.min(download.bytesSent, download.fileSize),
+                left: Math.max(download.fileSize - download.bytesSent, 0),
+                speed,
+                eta: speed > 0 ? remainingBytes / speed : null,
+                elapsed: elapsedSeconds
+            };
+        });
+    hostViewerSocketIds.forEach(socketId => {
+        io.to(socketId).emit('download-peers', { filePath, peers });
+    });
+}
+
+function buildTrackerSnapshot(now = Date.now()) {
+    const downloads = Array.from(activeDownloads.values()).map(download => {
+        const elapsed = Math.max((now - download.startedAt) / 1000, 0.1);
+        const speed = download.currentSpeed || 0;
+        const left = Math.max(download.fileSize - download.bytesSent, 0);
+        return {
+            id: download.id,
+            filePath: download.filePath,
+            fileName: path.basename(download.filePath),
+            ip: download.ip,
+            deviceName: download.deviceName,
+            nickname: download.nickname,
+            percent: download.fileSize ? Math.min(download.bytesSent / download.fileSize * 100, 100) : 0,
+            downloaded: Math.min(download.bytesSent, download.fileSize),
+            left,
+            speed,
+            speedHistory: download.speedHistory || [],
+            eta: speed > 0 ? left / speed : null,
+            elapsed
+        };
+    });
+    return {
+        downloads,
+        totalSpeed: downloads.reduce((total, download) => total + download.speed, 0)
+    };
+}
+
+function publishTrackerSnapshot() {
+    const now = Date.now();
+    activeDownloads.forEach(download => {
+        const previousTime = download.lastSampleAt || download.startedAt;
+        const previousBytes = download.lastSampleBytes || 0;
+        const sampleSeconds = Math.max((now - previousTime) / 1000, 0.001);
+        download.currentSpeed = Math.max(download.bytesSent - previousBytes, 0) / sampleSeconds;
+        download.lastSampleAt = now;
+        download.lastSampleBytes = download.bytesSent;
+        download.speedHistory = download.speedHistory || [];
+        download.speedHistory.push({ time: now, speed: download.currentSpeed });
+        if (download.speedHistory.length > 60) download.speedHistory.shift();
+    });
+    const snapshot = buildTrackerSnapshot(now);
+    hostViewerSocketIds.forEach(socketId => {
+        io.to(socketId).emit('tracker-update', snapshot);
+    });
+}
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -36,6 +120,30 @@ const defaultServeDir = isPackaged ?
     path.join(__dirname, 'serve');
 
 const SERVE_DIR = specifiedDir ? path.resolve(specifiedDir) : defaultServeDir;
+
+function isWithinDirectory(directory, target) {
+    const relativePath = path.relative(directory, target);
+    return relativePath === '' || (
+        relativePath !== '..' &&
+        !relativePath.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relativePath)
+    );
+}
+
+function resolveServedPath(requestPath) {
+    const rootPath = path.resolve(SERVE_DIR);
+    const targetPath = path.resolve(rootPath, requestPath);
+    if (!isWithinDirectory(rootPath, targetPath)) return null;
+
+    if (!fs.existsSync(targetPath)) return targetPath;
+    try {
+        const realRoot = fs.realpathSync(rootPath);
+        const realTarget = fs.realpathSync(targetPath);
+        return isWithinDirectory(realRoot, realTarget) ? realTarget : null;
+    } catch (error) {
+        return null;
+    }
+}
 
 // Function to get network IP addresses
 function getNetworkIPs() {
@@ -142,10 +250,8 @@ app.get('/api/server-info', (req, res) => {
 // API endpoint to get directory contents
 app.get('/api/browse/*', (req, res) => {
     const requestPath = req.params[0] || '';
-    const fullPath = path.join(SERVE_DIR, requestPath);
-
-    // Security check
-    if (!fullPath.startsWith(SERVE_DIR)) {
+    const fullPath = resolveServedPath(requestPath);
+    if (!fullPath) {
         return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -186,10 +292,8 @@ app.get('/api/browse/*', (req, res) => {
 // File download endpoint
 app.get('/download/*', (req, res) => {
     const requestPath = req.params[0] || '';
-    const fullPath = path.join(SERVE_DIR, requestPath);
-
-    // Security check
-    if (!fullPath.startsWith(SERVE_DIR)) {
+    const fullPath = resolveServedPath(requestPath);
+    if (!fullPath) {
         return res.status(403).send('Forbidden');
     }
 
@@ -203,7 +307,39 @@ app.get('/download/*', (req, res) => {
         return res.status(400).send('Cannot download directory');
     }
 
-    res.sendFile(fullPath);
+    const downloadId = crypto.randomUUID();
+    const download = {
+        id: downloadId,
+        peerId: typeof req.query.peerId === 'string' ? req.query.peerId : '',
+        filePath: requestPath.replace(/\\/g, '/'),
+        ip: req.ip || req.socket.remoteAddress || 'unknown',
+        deviceName: connectedPeers.get(req.query.peerId)?.deviceName || 'Unknown device',
+        nickname: connectedPeers.get(req.query.peerId)?.nickname || '',
+        fileSize: stat.size,
+        bytesSent: 0,
+        speedHistory: [],
+        startedAt: Date.now()
+    };
+    activeDownloads.set(downloadId, download);
+    publishDownloadPeers(download.filePath);
+    const progressTimer = setInterval(() => publishDownloadPeers(download.filePath), 1000);
+
+    const stream = fs.createReadStream(fullPath);
+    stream.on('data', chunk => {
+        download.bytesSent += chunk.length;
+    });
+    stream.on('error', () => {
+        if (!res.headersSent) res.status(500);
+        res.end();
+    });
+    res.on('close', () => {
+        clearInterval(progressTimer);
+        activeDownloads.delete(downloadId);
+        publishDownloadPeers(download.filePath);
+    });
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(fullPath))}`);
+    stream.pipe(res);
 });
 
 // Fallback route - serve the main UI for any unmatched routes
@@ -243,12 +379,48 @@ async function startServer() {
         const connectedUsers = new Map();
         
         io.on('connection', (socket) => {
-            const clientIP = socket.handshake.address || socket.conn.remoteAddress || 'unknown';
+            const clientIP = normalizeClientAddress(socket.handshake.address || socket.conn.remoteAddress || 'unknown');
             console.log(`👤 User connected: ${socket.id} from ${clientIP}`);
-            
+            if (isHostAddress(clientIP)) hostViewerSocketIds.add(socket.id);
+            const canViewTracker = hostViewerSocketIds.has(socket.id);
+            socket.emit('tracker-access', canViewTracker);
+            if (canViewTracker) socket.emit('tracker-update', buildTrackerSnapshot());
+            connectedPeers.set(socket.id, { deviceName: 'Unknown device', nickname: '' });
+            socket.on('peer-info', (data) => {
+                const peer = connectedPeers.get(socket.id);
+                if (peer && data && typeof data.deviceName === 'string') {
+                    peer.deviceName = data.deviceName.slice(0, 80);
+                    activeDownloads.forEach(download => {
+                        if (download.peerId === socket.id) {
+                            download.deviceName = peer.deviceName;
+                            publishDownloadPeers(download.filePath);
+                        }
+                    });
+                }
+            });
+            const activePaths = new Set(Array.from(activeDownloads.values(), download => download.filePath));
+            if (hostViewerSocketIds.has(socket.id)) activePaths.forEach(filePath => {
+                const peers = Array.from(activeDownloads.values())
+                    .filter(download => download.filePath === filePath)
+                    .map(download => {
+                        const elapsed = Math.max((Date.now() - download.startedAt) / 1000, 0.1);
+                        const speed = download.bytesSent / elapsed;
+                        return { id: download.id, ip: download.ip, deviceName: download.deviceName, nickname: download.nickname, percent: download.fileSize ? Math.min(download.bytesSent / download.fileSize * 100, 100) : 0, downloaded: Math.min(download.bytesSent, download.fileSize), left: Math.max(download.fileSize - download.bytesSent, 0), speed, eta: speed ? Math.max(download.fileSize - download.bytesSent, 0) / speed : null, elapsed };
+                    });
+                socket.emit('download-peers', { filePath, peers });
+            });
+
             socket.on('join-chat', (displayName) => {
                 // Generate secure username based on IP and display name
                 const secureUsername = generateSecureUsername(clientIP, displayName || 'User');
+                const peer = connectedPeers.get(socket.id);
+                if (peer) peer.nickname = String(displayName || '').trim().slice(0, 20);
+                activeDownloads.forEach(download => {
+                    if (download.peerId === socket.id) {
+                        download.nickname = peer?.nickname || '';
+                        publishDownloadPeers(download.filePath);
+                    }
+                });
                 
                 const user = {
                     id: socket.id,
@@ -290,6 +462,8 @@ async function startServer() {
             });
             
             socket.on('disconnect', () => {
+                hostViewerSocketIds.delete(socket.id);
+                connectedPeers.delete(socket.id);
                 const user = connectedUsers.get(socket.id);
                 if (user) {
                     connectedUsers.delete(socket.id);
@@ -305,6 +479,7 @@ async function startServer() {
             });
         });
 
+        setInterval(publishTrackerSnapshot, 1000);
         server.listen(PORT, '0.0.0.0', () => {
             console.log('🚀 File Server Started!');
             console.log(`📍 Serving directory: ${SERVE_DIR}`);
