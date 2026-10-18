@@ -164,6 +164,19 @@ function getNetworkIPs() {
     return ips;
 }
 
+function printAccessBox(lines) {
+    const title = 'FILE SERVER ACCESS';
+    const width = Math.max(title.length, ...lines.map(line => line.length));
+    const border = `─`.repeat(width + 2);
+    const printRow = text => console.log(`│ ${text.padEnd(width)} │`);
+
+    console.log(`┌${border}┐`);
+    printRow(title);
+    console.log(`├${border}┤`);
+    lines.forEach(printRow);
+    console.log(`└${border}┘`);
+}
+
 // Function to get external IP address
 async function getExternalIP() {
     const services = [
@@ -239,7 +252,9 @@ let SERVER_INFO = {
     hostname: os.hostname()
 };
 
-// Serve static files from public directory
+// Serve the built React UI first, then other public assets (including the legacy page).
+const UI_DIR = path.join(__dirname, 'public', 'ui');
+app.use(express.static(UI_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API endpoint to get server information
@@ -344,7 +359,8 @@ app.get('/download/*', (req, res) => {
 
 // Fallback route - serve the main UI for any unmatched routes
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const uiIndex = path.join(UI_DIR, 'index.html');
+    res.sendFile(fs.existsSync(uiIndex) ? uiIndex : path.join(__dirname, 'public', 'index.html'));
 });
 
 // Start server
@@ -481,55 +497,20 @@ async function startServer() {
 
         setInterval(publishTrackerSnapshot, 1000);
         server.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 File Server Started!');
-            console.log(`📍 Serving directory: ${SERVE_DIR}`);
-            console.log(`💻 Hostname: ${SERVER_INFO.hostname}`);
+            console.log('File Server Started');
+            console.log(`Host: ${SERVER_INFO.hostname}`);
+            console.log(`Serving: ${SERVE_DIR}`);
             console.log('');
-            console.log('🌐 Local Access URLs:');
-            console.log(`   http://localhost:${PORT}`);
-            console.log(`   http://127.0.0.1:${PORT}`);
-
-            if (networkIPs.length > 0) {
-                console.log('');
-                console.log('📱 Same Network Access (LAN):');
-                networkIPs.forEach(ip => {
-                    console.log(`   http://${ip.address}:${PORT} (${ip.interface})`);
-                });
-            }
-
-            if (externalIP) {
-                console.log('');
-                console.log('🌍 Cross-Network Access (Internet):');
-                console.log(`   External IP: ${externalIP}`);
-                console.log(`   Potential URL: http://${externalIP}:${PORT}`);
-                console.log('');
-                console.log('⚠️  ROUTER SETUP REQUIRED for cross-network access:');
-                console.log('   1. Open your router admin panel (usually 192.168.1.1 or 192.168.0.1)');
-                console.log(`   2. Set up Port Forwarding: External Port ${PORT} → Internal IP ${networkIPs[0]?.address || 'YOUR_LOCAL_IP'}:${PORT}`);
-                console.log('   3. Enable the port forwarding rule');
-                console.log(`   4. Share this URL: http://${externalIP}:${PORT}`);
-                console.log('');
-                console.log('🔒 SECURITY WARNING:');
-                console.log('   - This will expose your files to the entire internet');
-                console.log('   - Only enable if you trust who will access it');
-                console.log('   - Consider using a VPN or tunneling service instead');
-            } else {
-                console.log('');
-                console.log('⚠️  Could not detect external IP address');
-                console.log('💡 Check your internet connection for cross-network access');
-            }
+            printAccessBox([
+                ...networkIPs.map(ip => `LAN  http://${ip.address}:${PORT}  (${ip.interface})`),
+                ...(networkIPs.length ? [] : ['LAN  No IPv4 address detected']),
+                externalIP ? `External  http://${externalIP}:${PORT}` : 'External  IP could not be detected',
+                ...(externalIP ? ['External access may require router port forwarding.'] : [])
+            ]);
 
             console.log('');
-            console.log('🔧 Alternative Cross-Network Solutions:');
-            console.log('   - Use ngrok: npx ngrok http ' + PORT);
-            console.log('   - Use localtunnel: npx localtunnel --port ' + PORT);
-            console.log('   - Set up a VPN connection');
-
-            if (networkIPs.length > 0) {
-                console.log('');
-                console.log('✅ Same network users can access immediately using LAN URLs above');
-                console.log('💡 Make sure your firewall allows connections on port', PORT);
-            }
+            console.log(`Local address: http://localhost:${PORT}`);
+            console.log('Check that the firewall allows this port for LAN devices.');
 
             if (specifiedPort && PORT !== specifiedPort) {
                 console.log(`⚠️  Port ${specifiedPort} was busy, using ${PORT} instead`);
